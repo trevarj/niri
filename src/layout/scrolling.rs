@@ -4430,7 +4430,7 @@ impl<W: LayoutElement> Column<W> {
                     content_size.w
                 } else {
                     content_size.h
-            };
+                };
             let start = clip_start.max(start);
             let end = clip_end.min(end);
             if end <= start {
