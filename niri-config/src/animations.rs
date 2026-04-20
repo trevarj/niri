@@ -21,7 +21,7 @@ pub struct Animations {
     pub layer_close: LayerCloseAnim,
     pub horizontal_view_movement: HorizontalViewMovementAnim,
     pub window_movement: WindowMovementAnim,
-    pub tab_switch: TabSwitchAnim,
+    pub column_tab_switch: ColumnTabSwitchAnim,
     pub window_resize: WindowResizeAnim,
     pub config_notification_open_close: ConfigNotificationOpenCloseAnim,
     pub exit_confirmation_open_close: ExitConfirmationOpenCloseAnim,
@@ -38,7 +38,7 @@ impl Default for Animations {
             workspace_switch: Default::default(),
             horizontal_view_movement: Default::default(),
             window_movement: Default::default(),
-            tab_switch: Default::default(),
+            column_tab_switch: Default::default(),
             window_open: Default::default(),
             window_close: Default::default(),
             layer_open: Default::default(),
@@ -76,7 +76,7 @@ pub struct AnimationsPart {
     #[knuffel(child)]
     pub window_movement: Option<WindowMovementAnim>,
     #[knuffel(child)]
-    pub tab_switch: Option<TabSwitchAnim>,
+    pub column_tab_switch: Option<ColumnTabSwitchAnim>,
     #[knuffel(child)]
     pub window_resize: Option<WindowResizeAnim>,
     #[knuffel(child)]
@@ -111,7 +111,7 @@ impl MergeWith<AnimationsPart> for Animations {
             layer_close,
             horizontal_view_movement,
             window_movement,
-            tab_switch,
+            column_tab_switch,
             window_resize,
             config_notification_open_close,
             exit_confirmation_open_close,
@@ -340,12 +340,12 @@ impl Default for WindowMovementAnim {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct TabSwitchAnim {
+pub struct ColumnTabSwitchAnim {
     pub anim: Animation,
-    pub direction: TabSwitchDirection,
+    pub direction: ColumnTabSwitchDirection,
 }
 
-impl Default for TabSwitchAnim {
+impl Default for ColumnTabSwitchAnim {
     fn default() -> Self {
         Self {
             anim: Animation {
@@ -355,13 +355,13 @@ impl Default for TabSwitchAnim {
                     curve: Curve::EaseOutExpo,
                 }),
             },
-            direction: TabSwitchDirection::Vertical,
+            direction: ColumnTabSwitchDirection::Vertical,
         }
     }
 }
 
 #[derive(knuffel::DecodeScalar, Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TabSwitchDirection {
+pub enum ColumnTabSwitchDirection {
     Horizontal,
     Vertical,
 }
@@ -512,7 +512,7 @@ where
     }
 }
 
-impl<S> knuffel::Decode<S> for TabSwitchAnim
+impl<S> knuffel::Decode<S> for ColumnTabSwitchAnim
 where
     S: knuffel::traits::ErrorSpan,
 {

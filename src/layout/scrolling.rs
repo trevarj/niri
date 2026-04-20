@@ -4,7 +4,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use niri_config::utils::MergeWith as _;
-use niri_config::{CenterFocusedColumn, PresetSize, Struts, TabSwitchDirection};
+use niri_config::{CenterFocusedColumn, PresetSize, Struts, ColumnTabSwitchDirection};
 use niri_ipc::{ColumnDisplay, SizeChange, WindowLayout};
 use ordered_float::NotNan;
 use smithay::backend::renderer::gles::GlesRenderer;
@@ -219,7 +219,7 @@ pub struct Column<W: LayoutElement> {
     move_y_animation: Option<MoveAnimation>,
 
     /// Animation of the tab strip sliding under the active frame.
-    tab_switch_animation: Option<TabSwitchAnimation>,
+    column_tab_switch_animation: Option<ColumnTabSwitchAnimation>,
 
     /// Latest known view size for this column's workspace.
     view_size: Size<f64, Logical>,
@@ -316,7 +316,7 @@ struct MoveAnimation {
 }
 
 #[derive(Debug)]
-struct TabSwitchAnimation {
+struct ColumnTabSwitchAnimation {
     anim: Animation,
     from_idx: usize,
     to_idx: usize,
@@ -1102,7 +1102,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
 
         let column = &mut self.columns[column_idx];
         let prev_width = self.data[column_idx].width;
-        column.tab_switch_animation = None;
+        column.column_tab_switch_animation = None;
 
         let movement_config = anim_config.unwrap_or(self.options.animations.window_movement.0);
 
@@ -3027,7 +3027,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
                     .render(ctx.renderer, pos, &mut |elem| push(elem.into()));
             }
 
-            if col.render_tab_switch(
+            if col.render_column_tab_switch(
                 ctx.renderer,
                 col_pos,
                 focus_ring && first,
@@ -4069,7 +4069,7 @@ impl<W: LayoutElement> Column<W> {
             tab_indicator: TabIndicator::new(options.layout.tab_indicator),
             move_x_animation: None,
             move_y_animation: None,
-            tab_switch_animation: None,
+            column_tab_switch_animation: None,
             view_size,
             working_area,
             parent_area,
@@ -4162,8 +4162,8 @@ impl<W: LayoutElement> Column<W> {
         self.scale = scale;
         self.options = options;
 
-        if !self.should_animate_tab_switch() {
-            self.tab_switch_animation = None;
+        if !self.should_animate_column_tab_switch() {
+            self.column_tab_switch_animation = None;
         }
 
         if update_sizes {
@@ -4192,11 +4192,11 @@ impl<W: LayoutElement> Column<W> {
         }
 
         if self
-            .tab_switch_animation
+            .column_tab_switch_animation
             .as_ref()
-            .is_some_and(|animation| animation.anim.is_done() || !self.should_animate_tab_switch())
+            .is_some_and(|animation| animation.anim.is_done() || !self.should_animate_column_tab_switch())
         {
-            self.tab_switch_animation = None;
+            self.column_tab_switch_animation = None;
         }
 
         for tile in &mut self.tiles {
@@ -4209,7 +4209,7 @@ impl<W: LayoutElement> Column<W> {
     pub fn are_animations_ongoing(&self) -> bool {
         self.move_x_animation.is_some()
             || self.move_y_animation.is_some()
-            || self.tab_switch_animation.is_some()
+            || self.column_tab_switch_animation.is_some()
             || self.tab_indicator.are_animations_ongoing()
             || self.tiles.iter().any(Tile::are_animations_ongoing)
     }
@@ -4217,7 +4217,7 @@ impl<W: LayoutElement> Column<W> {
     pub fn are_transitions_ongoing(&self) -> bool {
         self.move_x_animation.is_some()
             || self.move_y_animation.is_some()
-            || self.tab_switch_animation.is_some()
+            || self.column_tab_switch_animation.is_some()
             || self.tab_indicator.are_animations_ongoing()
             || self.tiles.iter().any(Tile::are_transitions_ongoing)
     }
@@ -4319,23 +4319,23 @@ impl<W: LayoutElement> Column<W> {
         offset
     }
 
-    fn should_animate_tab_switch(&self) -> bool {
+    fn should_animate_column_tab_switch(&self) -> bool {
         self.display_mode == ColumnDisplay::Tabbed
             && self.tiles.len() > 1
             && self.sizing_mode().is_normal()
-            && !self.options.animations.tab_switch.anim.off
+            && !self.options.animations.column_tab_switch.anim.off
     }
 
-    fn animate_tile_on_tab_switch(
+    fn animate_tile_on_column_tab_switch(
         &self,
-        animation: &TabSwitchAnimation,
+        animation: &ColumnTabSwitchAnimation,
         tile_idx: usize,
         progress: f64,
     ) -> Point<f64, Logical> {
         let strip_size = |idx: usize| self.tiles[idx].animated_window_size();
         let strip_offset = |active_idx| -> Point<f64, Logical> {
-            match self.options.animations.tab_switch.direction {
-                TabSwitchDirection::Horizontal => {
+            match self.options.animations.column_tab_switch.direction {
+                ColumnTabSwitchDirection::Horizontal => {
                     let offset = if tile_idx < active_idx {
                         -(tile_idx..active_idx)
                             .map(|idx| strip_size(idx).w)
@@ -4347,7 +4347,7 @@ impl<W: LayoutElement> Column<W> {
                     };
                     Point::from((offset, 0.))
                 }
-                TabSwitchDirection::Vertical => {
+                ColumnTabSwitchDirection::Vertical => {
                     let offset = if tile_idx < active_idx {
                         -(tile_idx..active_idx)
                             .map(|idx| strip_size(idx).h)
@@ -4370,7 +4370,7 @@ impl<W: LayoutElement> Column<W> {
         ))
     }
 
-    fn render_tab_switch<R: NiriRenderer>(
+    fn render_column_tab_switch<R: NiriRenderer>(
         &self,
         renderer: &mut R,
         column_loc: Point<f64, Logical>,
@@ -4378,10 +4378,10 @@ impl<W: LayoutElement> Column<W> {
         target: RenderTarget,
         push: &mut dyn FnMut(TileRenderElement<R>),
     ) -> bool {
-        let Some(animation) = self.tab_switch_animation.as_ref() else {
+        let Some(animation) = self.column_tab_switch_animation.as_ref() else {
             return false;
         };
-        if !self.should_animate_tab_switch() {
+        if !self.should_animate_column_tab_switch() {
             return false;
         }
 
@@ -4389,20 +4389,20 @@ impl<W: LayoutElement> Column<W> {
             .to_physical_precise_round(self.scale)
             .to_logical(self.scale);
         let active_tile = &self.tiles[self.active_tile_idx];
-        let active_content_origin = active_tile.tab_switch_content_origin();
-        let (clip_geo, clip_radius) = active_tile.tab_switch_mask(frame_loc);
+        let active_content_origin = active_tile.column_tab_switch_content_origin();
+        let (clip_geo, clip_radius) = active_tile.column_tab_switch_mask(frame_loc);
         let progress = animation.anim.clamped_value();
         let horizontal =
-            self.options.animations.tab_switch.direction == TabSwitchDirection::Horizontal;
+            self.options.animations.column_tab_switch.direction == ColumnTabSwitchDirection::Horizontal;
 
         let strip = (0..self.tiles.len())
             .into_iter()
             .map(|idx| {
                 let tile = &self.tiles[idx];
-                let offset = self.animate_tile_on_tab_switch(animation, idx, progress);
+                let offset = self.animate_tile_on_column_tab_switch(animation, idx, progress);
                 let location =
-                    frame_loc + offset + active_content_origin - tile.tab_switch_content_origin();
-                let content_loc = location + tile.tab_switch_content_origin();
+                    frame_loc + offset + active_content_origin - tile.column_tab_switch_content_origin();
+                let content_loc = location + tile.column_tab_switch_content_origin();
                 let content_size = tile.animated_window_size();
                 (tile, location, content_loc, content_size)
             })
@@ -4634,14 +4634,14 @@ impl<W: LayoutElement> Column<W> {
             return false;
         }
 
-        self.tab_switch_animation = if self.should_animate_tab_switch() {
-            Some(TabSwitchAnimation {
+        self.column_tab_switch_animation = if self.should_animate_column_tab_switch() {
+            Some(ColumnTabSwitchAnimation {
                 anim: Animation::new(
                     self.clock.clone(),
                     0.,
                     1.,
                     0.,
-                    self.options.animations.tab_switch.anim,
+                    self.options.animations.column_tab_switch.anim,
                 ),
                 from_idx: old_idx,
                 to_idx: idx,
@@ -4662,7 +4662,7 @@ impl<W: LayoutElement> Column<W> {
 
     fn add_tile_at(&mut self, idx: usize, mut tile: Tile<W>) {
         tile.update_config(self.view_size, self.scale, self.options.clone());
-        self.tab_switch_animation = None;
+        self.column_tab_switch_animation = None;
 
         // Inserting a tile pushes down all tiles below it, but also in always-centering mode it
         // will affect the X position of all tiles in the column.
@@ -5121,7 +5121,7 @@ impl<W: LayoutElement> Column<W> {
             return false;
         }
 
-        self.tab_switch_animation = None;
+        self.column_tab_switch_animation = None;
 
         let mut ys = self.tile_offsets().skip(self.active_tile_idx);
         let active_y = ys.next().unwrap().y;
@@ -5146,7 +5146,7 @@ impl<W: LayoutElement> Column<W> {
             return false;
         }
 
-        self.tab_switch_animation = None;
+        self.column_tab_switch_animation = None;
 
         let mut ys = self.tile_offsets().skip(self.active_tile_idx);
         let active_y = ys.next().unwrap().y;
@@ -5485,7 +5485,7 @@ impl<W: LayoutElement> Column<W> {
             return;
         }
 
-        self.tab_switch_animation = None;
+        self.column_tab_switch_animation = None;
 
         // Animate the movement.
         //

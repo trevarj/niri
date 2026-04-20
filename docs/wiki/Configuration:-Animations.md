@@ -40,7 +40,7 @@ animations {
         curve "ease-out-quad"
     }
 
-    tab-switch {
+    column-tab-switch {
         duration-ms 150
         curve "ease-out-expo"
         direction "vertical"
@@ -447,7 +447,7 @@ animations {
 }
 ```
 
-#### `tab-switch`
+#### `column-tab-switch`
 
 Animation used when switching the active window inside a tabbed column.
 
@@ -456,7 +456,7 @@ for example when using `focus-window-up`, `focus-window-down`, or direct index-b
 
 ```kdl
 animations {
-    tab-switch {
+    column-tab-switch {
         duration-ms 150
         curve "ease-out-expo"
         direction "vertical"
@@ -466,7 +466,7 @@ animations {
 
 ##### `direction`
 
-Controls the axis of the tab-switch animation.
+Controls the axis of the column-tab-switch animation.
 
 Possible values:
 
