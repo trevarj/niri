@@ -843,6 +843,26 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         }
     }
 
+    fn update_column_width(&mut self, col_idx: usize, config: niri_config::Animation) {
+        let prev_width = self.data[col_idx].width;
+        self.data[col_idx].update(&self.columns[col_idx]);
+        let offset = prev_width - self.data[col_idx].width;
+
+        if offset == 0. {
+            return;
+        }
+
+        if self.active_column_idx <= col_idx {
+            for col in &mut self.columns[col_idx + 1..] {
+                col.animate_move_x_from_with_config(offset, config);
+            }
+        } else {
+            for col in &mut self.columns[..=col_idx] {
+                col.animate_move_x_from_with_config(-offset, config);
+            }
+        }
+    }
+
     pub(super) fn insert_position(&self, pos: Point<f64, Logical>) -> InsertPosition {
         if self.columns.is_empty() {
             return InsertPosition::NewColumn(0);
@@ -946,7 +966,6 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         let mut prev_active_tile_idx = target_column.active_tile_idx;
 
         target_column.add_tile_at(tile_idx, tile);
-        self.data[col_idx].update(target_column);
 
         if tile_idx <= prev_active_tile_idx {
             target_column.active_tile_idx += 1;
@@ -973,6 +992,8 @@ impl<W: LayoutElement> ScrollingSpace<W> {
                 tile.animate_alpha(1., 0., self.options.animations.window_movement.0);
             }
         }
+
+        self.data[col_idx].update(target_column);
 
         // Adding a wider window into a column increases its width now (even if the window will
         // shrink later). Move the columns to account for this.
@@ -1477,6 +1498,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         let column = &mut self.columns[column_idx];
 
         column.activate_window(window);
+        self.update_column_width(column_idx, self.options.animations.window_movement.0);
         self.activate_column(column_idx);
 
         true
@@ -1655,6 +1677,10 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         }
 
         self.columns[self.active_column_idx].focus_index(index);
+        self.update_column_width(
+            self.active_column_idx,
+            self.options.animations.window_movement.0,
+        );
     }
 
     pub fn focus_down(&mut self) -> bool {
@@ -1662,7 +1688,14 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             return false;
         }
 
-        self.columns[self.active_column_idx].focus_down()
+        let changed = self.columns[self.active_column_idx].focus_down();
+        if changed {
+            self.update_column_width(
+                self.active_column_idx,
+                self.options.animations.window_movement.0,
+            );
+        }
+        changed
     }
 
     pub fn focus_up(&mut self) -> bool {
@@ -1670,7 +1703,14 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             return false;
         }
 
-        self.columns[self.active_column_idx].focus_up()
+        let changed = self.columns[self.active_column_idx].focus_up();
+        if changed {
+            self.update_column_width(
+                self.active_column_idx,
+                self.options.animations.window_movement.0,
+            );
+        }
+        changed
     }
 
     pub fn focus_down_or_left(&mut self) {
@@ -1678,8 +1718,10 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             return;
         }
 
-        let column = &mut self.columns[self.active_column_idx];
-        if !column.focus_down() {
+        let idx = self.active_column_idx;
+        if self.columns[idx].focus_down() {
+            self.update_column_width(idx, self.options.animations.window_movement.0);
+        } else {
             self.focus_left();
         }
     }
@@ -1689,8 +1731,10 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             return;
         }
 
-        let column = &mut self.columns[self.active_column_idx];
-        if !column.focus_down() {
+        let idx = self.active_column_idx;
+        if self.columns[idx].focus_down() {
+            self.update_column_width(idx, self.options.animations.window_movement.0);
+        } else {
             self.focus_right();
         }
     }
@@ -1700,8 +1744,10 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             return;
         }
 
-        let column = &mut self.columns[self.active_column_idx];
-        if !column.focus_up() {
+        let idx = self.active_column_idx;
+        if self.columns[idx].focus_up() {
+            self.update_column_width(idx, self.options.animations.window_movement.0);
+        } else {
             self.focus_left();
         }
     }
@@ -1711,8 +1757,10 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             return;
         }
 
-        let column = &mut self.columns[self.active_column_idx];
-        if !column.focus_up() {
+        let idx = self.active_column_idx;
+        if self.columns[idx].focus_up() {
+            self.update_column_width(idx, self.options.animations.window_movement.0);
+        } else {
             self.focus_right();
         }
     }
@@ -1722,7 +1770,11 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             return;
         }
 
-        self.columns[self.active_column_idx].focus_top()
+        self.columns[self.active_column_idx].focus_top();
+        self.update_column_width(
+            self.active_column_idx,
+            self.options.animations.window_movement.0,
+        );
     }
 
     pub fn focus_bottom(&mut self) {
@@ -1730,7 +1782,11 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             return;
         }
 
-        self.columns[self.active_column_idx].focus_bottom()
+        self.columns[self.active_column_idx].focus_bottom();
+        self.update_column_width(
+            self.active_column_idx,
+            self.options.animations.window_movement.0,
+        );
     }
 
     pub fn move_column_to_index(&mut self, index: usize) {
@@ -2209,6 +2265,8 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         // update the active tile in the modified columns
         self.columns[source_column_idx].active_tile_idx = source_tile_idx;
         self.columns[target_column_idx].active_tile_idx = target_tile_idx;
+        self.data[source_column_idx].update(&self.columns[source_column_idx]);
+        self.data[target_column_idx].update(&self.columns[target_column_idx]);
 
         // Animations
         self.columns[target_column_idx].tiles[target_tile_idx]
@@ -5115,7 +5173,7 @@ impl<W: LayoutElement> Column<W> {
     }
 
     fn width(&self) -> f64 {
-        let mut tiles_width = if self.has_lingering_expanded_inactive_tabs() {
+        let mut tiles_width = if self.display_mode == ColumnDisplay::Tabbed {
             self.data[self.active_tile_idx].size.w
         } else {
             self.data
@@ -5618,7 +5676,7 @@ impl<W: LayoutElement> Column<W> {
         let tabbed = self.display_mode == ColumnDisplay::Tabbed;
 
         // Does not include extra size from the tab indicator.
-        let tiles_width = if self.has_lingering_expanded_inactive_tabs() {
+        let tiles_width = if tabbed {
             self.data[self.active_tile_idx].size.w
         } else {
             self.data
